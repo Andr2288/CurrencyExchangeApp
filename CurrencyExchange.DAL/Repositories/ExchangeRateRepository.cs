@@ -20,9 +20,6 @@ namespace CurrencyExchange.DAL.Repositories
         public async Task<IEnumerable<ExchangeRate>> GetLatestRatesAsync()
         {
             return await _dbSet
-                .Include(er => er.FromCurrency)
-                .Include(er => er.ToCurrency)
-                .Include(er => er.ApiSource)
                 .OrderByDescending(er => er.FetchedAt)
                 .Take(100)
                 .ToListAsync();
@@ -31,8 +28,6 @@ namespace CurrencyExchange.DAL.Repositories
         public async Task<IEnumerable<ExchangeRate>> GetRatesBySourceAsync(int apiSourceId)
         {
             return await _dbSet
-                .Include(er => er.FromCurrency)
-                .Include(er => er.ToCurrency)
                 .Where(er => er.ApiSourceId == apiSourceId)
                 .OrderByDescending(er => er.FetchedAt)
                 .ToListAsync();
@@ -41,7 +36,6 @@ namespace CurrencyExchange.DAL.Repositories
         public async Task<IEnumerable<ExchangeRate>> GetRatesByCurrencyPairAsync(int fromCurrencyId, int toCurrencyId)
         {
             return await _dbSet
-                .Include(er => er.ApiSource)
                 .Where(er => er.FromCurrencyId == fromCurrencyId && er.ToCurrencyId == toCurrencyId)
                 .OrderByDescending(er => er.FetchedAt)
                 .ToListAsync();

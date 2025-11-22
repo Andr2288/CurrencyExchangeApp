@@ -1,15 +1,18 @@
-using CurrencyExchange.BLL.Interfaces;
-using CurrencyExchange.BLL.Services;
+using Microsoft.EntityFrameworkCore;
 using CurrencyExchange.DAL.Data;
 using CurrencyExchange.DAL.Interfaces;
 using CurrencyExchange.DAL.Repositories;
-using Microsoft.EntityFrameworkCore;
-using System;
+using CurrencyExchange.BLL.Interfaces;
+using CurrencyExchange.BLL.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -21,9 +24,17 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<IExchangeRateRepository, ExchangeRateRepository>();
 
+// HttpClient
+builder.Services.AddHttpClient();
+
 // Services
 builder.Services.AddScoped<ICurrencyService, CurrencyService>();
 builder.Services.AddScoped<IExchangeRateService, ExchangeRateService>();
+builder.Services.AddScoped<ExchangeRateFetchService>();
+
+// Adapters
+builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.PrivatBankAdapter>();
+builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.NbuAdapter>();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -50,6 +61,7 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
+// Seed даних
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
