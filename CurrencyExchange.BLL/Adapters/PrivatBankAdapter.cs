@@ -5,6 +5,7 @@ using CurrencyExchange.DAL.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -19,7 +20,6 @@ namespace CurrencyExchange.BLL.Adapters
         private readonly IRepository<ApiSource> _apiSourceRepository;
         private readonly ILogger<PrivatBankAdapter> _logger;
         private const string API_URL = "https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5";
-            
 
         public PrivatBankAdapter(
             HttpClient httpClient,
@@ -44,6 +44,8 @@ namespace CurrencyExchange.BLL.Adapters
                 _logger.LogInformation("Fetching rates from PrivatBank API");
 
                 var response = await _httpClient.GetStringAsync(API_URL);
+                _logger.LogDebug("PrivatBank API response: {Response}", response);
+
                 var privatRates = JsonSerializer.Deserialize<List<PrivatBankRateDto>>(response);
 
                 if (privatRates == null || !privatRates.Any())
@@ -75,15 +77,15 @@ namespace CurrencyExchange.BLL.Adapters
                     var currency = currencies.FirstOrDefault(c => c.Code == rate.ccy);
                     if (currency == null)
                     {
-                        _logger.LogWarning($"Currency {rate.ccy} not found in database, skipping");
+                        _logger.LogDebug($"Currency {rate.ccy} not found in database, skipping");
                         continue;
                     }
 
-                    // Валідація курсів
-                    if (!decimal.TryParse(rate.buy, out var buyRate) ||
-                        !decimal.TryParse(rate.sale, out var sellRate))
+                    // Покращена валідація курсів з підтримкою різних форматів
+                    if (!TryParseDecimal(rate.buy, out var buyRate) ||
+                        !TryParseDecimal(rate.sale, out var sellRate))
                     {
-                        _logger.LogWarning($"Invalid rate format for {rate.ccy}");
+                        _logger.LogWarning($"Invalid rate format for {rate.ccy}: buy={rate.buy}, sale={rate.sale}");
                         continue;
                     }
 
@@ -103,6 +105,8 @@ namespace CurrencyExchange.BLL.Adapters
                         FetchedAt = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow
                     });
+
+                    _logger.LogDebug($"Successfully parsed rate for {rate.ccy}: buy={buyRate}, sell={sellRate}");
                 }
 
                 _logger.LogInformation($"Successfully fetched {rates.Count} rates from PrivatBank");
@@ -121,6 +125,45 @@ namespace CurrencyExchange.BLL.Adapters
             }
 
             return rates;
+        }
+
+        private bool TryParseDecimal(string value, out decimal result)
+        {
+            result = 0;
+
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            // Спробуємо різні варіанти парсингу
+            var formats = new[]
+            {
+                CultureInfo.InvariantCulture,
+                CultureInfo.GetCultureInfo("uk-UA"),
+                CultureInfo.GetCultureInfo("en-US")
+            };
+
+            foreach (var culture in formats)
+            {
+                if (decimal.TryParse(value, NumberStyles.Number, culture, out result))
+                {
+                    return true;
+                }
+            }
+
+            // Спробуємо замінити кому на крапку та навпаки
+            var normalizedValue = value.Replace(',', '.');
+            if (decimal.TryParse(normalizedValue, NumberStyles.Number, CultureInfo.InvariantCulture, out result))
+            {
+                return true;
+            }
+
+            normalizedValue = value.Replace('.', ',');
+            if (decimal.TryParse(normalizedValue, NumberStyles.Number, CultureInfo.GetCultureInfo("uk-UA"), out result))
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }
