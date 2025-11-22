@@ -36,6 +36,9 @@ builder.Services.AddScoped<ExchangeRateFetchService>();
 builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.PrivatBankAdapter>();
 builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.NbuAdapter>();
 
+// Background Service для автооновлення курсів
+builder.Services.AddHostedService<ExchangeRateBackgroundService>();
+
 // CORS
 builder.Services.AddCors(options =>
 {
@@ -61,7 +64,7 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// Seed даних
+// Seed данихъ
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
