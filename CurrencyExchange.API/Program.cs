@@ -4,6 +4,7 @@ using CurrencyExchange.DAL.Interfaces;
 using CurrencyExchange.DAL.Repositories;
 using CurrencyExchange.BLL.Interfaces;
 using CurrencyExchange.BLL.Services;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,6 +41,27 @@ builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.N
 // Background Service для автооновлення курсів
 builder.Services.AddHostedService<ExchangeRateBackgroundService>();
 
+// Rate Limiting
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 1000,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = 429;
+        await context.HttpContext.Response.WriteAsync("Too many requests. Please try again later.", token);
+    };
+});
+
 // CORS
 builder.Services.AddCors(options =>
 {
@@ -62,6 +84,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
+
+// Rate Limiting middleware
+app.UseRateLimiter();
+
 app.UseAuthorization();
 app.MapControllers();
 
