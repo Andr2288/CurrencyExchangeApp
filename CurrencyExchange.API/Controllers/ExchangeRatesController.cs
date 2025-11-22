@@ -31,42 +31,124 @@ namespace CurrencyExchange.API.Controllers
         }
 
         /// <summary>
-        /// Отримати всі останні курси
+        /// Отримати всі останні курси з пагінацією
+        /// GET /api/ExchangeRates/latest?page=1&pageSize=10
         /// </summary>
         [HttpGet("latest")]
-        public async Task<IActionResult> GetLatestRates()
+        public async Task<IActionResult> GetLatestRates(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
-            var rates = await _exchangeRateService.GetLatestRatesAsync();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 100) pageSize = 100; // Максимум 100 на сторінку
 
-            var response = rates.Select(r => new ExchangeRateResponseDto
+            var rates = await _exchangeRateService.GetLatestRatesAsync();
+            var ratesList = rates.ToList();
+
+            var totalCount = ratesList.Count;
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            var paginatedRates = ratesList
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize);
+
+            var response = new PaginatedResponse<ExchangeRateResponseDto>
             {
-                Id = r.Id,
-                FromCurrencyCode = r.FromCurrency?.Code ?? "",
-                FromCurrencyName = r.FromCurrency?.Name ?? "",
-                FromCurrencySymbol = r.FromCurrency?.Symbol ?? "",
-                ToCurrencyCode = r.ToCurrency?.Code ?? "",
-                ToCurrencyName = r.ToCurrency?.Name ?? "",
-                ToCurrencySymbol = r.ToCurrency?.Symbol ?? "",
-                SourceName = r.ApiSource?.Name ?? "",
-                BuyRate = r.BuyRate,
-                SellRate = r.SellRate,
-                FetchedAt = r.FetchedAt,
-                CreatedAt = r.CreatedAt
-            });
+                Data = paginatedRates.Select(r => new ExchangeRateResponseDto
+                {
+                    Id = r.Id,
+                    FromCurrencyCode = r.FromCurrency?.Code ?? "",
+                    FromCurrencyName = r.FromCurrency?.Name ?? "",
+                    FromCurrencySymbol = r.FromCurrency?.Symbol ?? "",
+                    ToCurrencyCode = r.ToCurrency?.Code ?? "",
+                    ToCurrencyName = r.ToCurrency?.Name ?? "",
+                    ToCurrencySymbol = r.ToCurrency?.Symbol ?? "",
+                    SourceName = r.ApiSource?.Name ?? "",
+                    BuyRate = r.BuyRate,
+                    SellRate = r.SellRate,
+                    FetchedAt = r.FetchedAt,
+                    CreatedAt = r.CreatedAt
+                }),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = totalPages,
+                HasPrevious = page > 1,
+                HasNext = page < totalPages
+            };
 
             return Ok(response);
         }
 
         /// <summary>
-        /// Отримати курси з фільтрацією
-        /// GET /api/ExchangeRates/filter?bank=ПриватБанк&from=USD&to=UAH
+        /// Отримати ВСІ курси з історією (пагінація)
+        /// GET /api/ExchangeRates/all?page=1&pageSize=50
+        /// </summary>
+        [HttpGet("all")]
+        public async Task<IActionResult> GetAllRates(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 100) pageSize = 100;
+
+            // Завантажуємо ВСІ курси з navigation properties
+            var allRates = await _exchangeRateRepository.GetAllWithDetailsAsync();
+            var ratesList = allRates.ToList();
+
+            var totalCount = ratesList.Count;
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            var paginatedRates = ratesList
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize);
+
+            var response = new PaginatedResponse<ExchangeRateResponseDto>
+            {
+                Data = paginatedRates.Select(r => new ExchangeRateResponseDto
+                {
+                    Id = r.Id,
+                    FromCurrencyCode = r.FromCurrency?.Code ?? "",
+                    FromCurrencyName = r.FromCurrency?.Name ?? "",
+                    FromCurrencySymbol = r.FromCurrency?.Symbol ?? "",
+                    ToCurrencyCode = r.ToCurrency?.Code ?? "",
+                    ToCurrencyName = r.ToCurrency?.Name ?? "",
+                    ToCurrencySymbol = r.ToCurrency?.Symbol ?? "",
+                    SourceName = r.ApiSource?.Name ?? "",
+                    BuyRate = r.BuyRate,
+                    SellRate = r.SellRate,
+                    FetchedAt = r.FetchedAt,
+                    CreatedAt = r.CreatedAt
+                }),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = totalPages,
+                HasPrevious = page > 1,
+                HasNext = page < totalPages
+            };
+
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Отримати курси з фільтрацією та пагінацією
+        /// GET /api/ExchangeRates/filter?bank=ПриватБанк&from=USD&to=UAH&page=1&pageSize=10
         /// </summary>
         [HttpGet("filter")]
         public async Task<IActionResult> GetFiltered(
-            [FromQuery] string? bank = null,
-            [FromQuery] string? from = null,
-            [FromQuery] string? to = null)
+            [FromQuery] string bank = "",
+            [FromQuery] string from = "",
+            [FromQuery] string to = "",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 100) pageSize = 100;
+
             var rates = await _exchangeRateRepository.GetLatestRatesAsync();
 
             // Фільтр за банком
@@ -87,21 +169,38 @@ namespace CurrencyExchange.API.Controllers
                 rates = rates.Where(r => r.ToCurrency?.Code.Equals(to, StringComparison.OrdinalIgnoreCase) ?? false);
             }
 
-            var response = rates.Select(r => new ExchangeRateResponseDto
+            var ratesList = rates.ToList();
+            var totalCount = ratesList.Count;
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            var paginatedRates = ratesList
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize);
+
+            var response = new PaginatedResponse<ExchangeRateResponseDto>
             {
-                Id = r.Id,
-                FromCurrencyCode = r.FromCurrency?.Code ?? "",
-                FromCurrencyName = r.FromCurrency?.Name ?? "",
-                FromCurrencySymbol = r.FromCurrency?.Symbol ?? "",
-                ToCurrencyCode = r.ToCurrency?.Code ?? "",
-                ToCurrencyName = r.ToCurrency?.Name ?? "",
-                ToCurrencySymbol = r.ToCurrency?.Symbol ?? "",
-                SourceName = r.ApiSource?.Name ?? "",
-                BuyRate = r.BuyRate,
-                SellRate = r.SellRate,
-                FetchedAt = r.FetchedAt,
-                CreatedAt = r.CreatedAt
-            });
+                Data = paginatedRates.Select(r => new ExchangeRateResponseDto
+                {
+                    Id = r.Id,
+                    FromCurrencyCode = r.FromCurrency?.Code ?? "",
+                    FromCurrencyName = r.FromCurrency?.Name ?? "",
+                    FromCurrencySymbol = r.FromCurrency?.Symbol ?? "",
+                    ToCurrencyCode = r.ToCurrency?.Code ?? "",
+                    ToCurrencyName = r.ToCurrency?.Name ?? "",
+                    ToCurrencySymbol = r.ToCurrency?.Symbol ?? "",
+                    SourceName = r.ApiSource?.Name ?? "",
+                    BuyRate = r.BuyRate,
+                    SellRate = r.SellRate,
+                    FetchedAt = r.FetchedAt,
+                    CreatedAt = r.CreatedAt
+                }),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = totalPages,
+                HasPrevious = page > 1,
+                HasNext = page < totalPages
+            };
 
             return Ok(response);
         }
