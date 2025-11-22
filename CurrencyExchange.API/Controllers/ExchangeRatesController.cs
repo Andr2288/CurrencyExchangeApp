@@ -1,4 +1,5 @@
-﻿using CurrencyExchange.BLL.Services;
+﻿using CurrencyExchange.BLL.DTOs;
+using CurrencyExchange.BLL.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CurrencyExchange.API.Controllers
@@ -23,7 +24,24 @@ namespace CurrencyExchange.API.Controllers
         public async Task<IActionResult> GetLatestRates()
         {
             var rates = await _exchangeRateService.GetLatestRatesAsync();
-            return Ok(rates);
+
+            var response = rates.Select(r => new ExchangeRateResponseDto
+            {
+                Id = r.Id,
+                FromCurrencyCode = r.FromCurrency?.Code ?? "",
+                FromCurrencyName = r.FromCurrency?.Name ?? "",
+                FromCurrencySymbol = r.FromCurrency?.Symbol ?? "",
+                ToCurrencyCode = r.ToCurrency?.Code ?? "",
+                ToCurrencyName = r.ToCurrency?.Name ?? "",
+                ToCurrencySymbol = r.ToCurrency?.Symbol ?? "",
+                SourceName = r.ApiSource?.Name ?? "",
+                BuyRate = r.BuyRate,
+                SellRate = r.SellRate,
+                FetchedAt = r.FetchedAt,
+                CreatedAt = r.CreatedAt
+            });
+
+            return Ok(response);
         }
 
         // Отримати курси за джерелом
@@ -31,7 +49,24 @@ namespace CurrencyExchange.API.Controllers
         public async Task<IActionResult> GetRatesBySource(int apiSourceId)
         {
             var rates = await _exchangeRateService.GetRatesBySourceAsync(apiSourceId);
-            return Ok(rates);
+
+            var response = rates.Select(r => new ExchangeRateResponseDto
+            {
+                Id = r.Id,
+                FromCurrencyCode = r.FromCurrency?.Code ?? "",
+                FromCurrencyName = r.FromCurrency?.Name ?? "",
+                FromCurrencySymbol = r.FromCurrency?.Symbol ?? "",
+                ToCurrencyCode = r.ToCurrency?.Code ?? "",
+                ToCurrencyName = r.ToCurrency?.Name ?? "",
+                ToCurrencySymbol = r.ToCurrency?.Symbol ?? "",
+                SourceName = r.ApiSource?.Name ?? "",
+                BuyRate = r.BuyRate,
+                SellRate = r.SellRate,
+                FetchedAt = r.FetchedAt,
+                CreatedAt = r.CreatedAt
+            });
+
+            return Ok(response);
         }
 
         // Отримати курси за валютною парою
@@ -39,7 +74,24 @@ namespace CurrencyExchange.API.Controllers
         public async Task<IActionResult> GetRatesByCurrencyPair(int fromCurrencyId, int toCurrencyId)
         {
             var rates = await _exchangeRateService.GetRatesByCurrencyPairAsync(fromCurrencyId, toCurrencyId);
-            return Ok(rates);
+
+            var response = rates.Select(r => new ExchangeRateResponseDto
+            {
+                Id = r.Id,
+                FromCurrencyCode = r.FromCurrency?.Code ?? "",
+                FromCurrencyName = r.FromCurrency?.Name ?? "",
+                FromCurrencySymbol = r.FromCurrency?.Symbol ?? "",
+                ToCurrencyCode = r.ToCurrency?.Code ?? "",
+                ToCurrencyName = r.ToCurrency?.Name ?? "",
+                ToCurrencySymbol = r.ToCurrency?.Symbol ?? "",
+                SourceName = r.ApiSource?.Name ?? "",
+                BuyRate = r.BuyRate,
+                SellRate = r.SellRate,
+                FetchedAt = r.FetchedAt,
+                CreatedAt = r.CreatedAt
+            });
+
+            return Ok(response);
         }
 
         // Ручне оновлення всіх курсів
