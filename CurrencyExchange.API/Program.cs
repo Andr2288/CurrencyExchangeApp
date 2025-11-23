@@ -5,6 +5,9 @@ using CurrencyExchange.DAL.Repositories;
 using CurrencyExchange.BLL.Interfaces;
 using CurrencyExchange.BLL.Services;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +36,7 @@ builder.Services.AddScoped<ICurrencyService, CurrencyService>();
 builder.Services.AddScoped<IExchangeRateService, ExchangeRateService>();
 builder.Services.AddScoped<ExchangeRateFetchService>();
 builder.Services.AddScoped<CurrencyConversionService>();
+builder.Services.AddScoped<AuthService>();
 
 // Adapters
 builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.PrivatBankAdapter>();
@@ -40,6 +44,24 @@ builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.N
 
 // Background Service для автооновлення курсів
 builder.Services.AddHostedService<ExchangeRateBackgroundService>();
+
+// JWT Authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ??
+                    "super-secret-key-minimum-32-characters-long-for-security"))
+        };
+    });
 
 // Rate Limiting
 builder.Services.AddRateLimiter(options =>
@@ -49,7 +71,7 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
             factory: partition => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 1000,
+                PermitLimit = 100,
                 Window = TimeSpan.FromMinutes(1),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
@@ -88,6 +110,8 @@ app.UseHttpsRedirection();
 // Rate Limiting middleware
 app.UseRateLimiter();
 
+// Authentication & Authorization
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

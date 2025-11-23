@@ -19,6 +19,7 @@ namespace CurrencyExchange.DAL.Data
         public DbSet<Currency> Currencies { get; set; }
         public DbSet<ApiSource> ApiSources { get; set; }
         public DbSet<ExchangeRate> ExchangeRates { get; set; }
+        public DbSet<User> Users { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -50,6 +51,15 @@ namespace CurrencyExchange.DAL.Data
 
             modelBuilder.Entity<ExchangeRate>()
                 .HasIndex(er => new { er.FromCurrencyId, er.ToCurrencyId, er.ApiSourceId, er.FetchedAt });
+
+            // Індекси для User
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Username)
+                .IsUnique();
+
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
         }
     }
 }
