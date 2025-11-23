@@ -84,14 +84,20 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// CORS
+// CORS - ВАЖЛИВО: додаємо обидва порти
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(
+                "http://localhost:5173",    // Vite dev server
+                "http://localhost:5099",    // Якщо запускається на цьому порті
+                "https://localhost:7287"    // HTTPS порт
+              )
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials()
+              .SetIsOriginAllowed(origin => true); // Для development
     });
 });
 
@@ -102,10 +108,17 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    // Вимикаємо HTTPS redirect в development для спрощення
+    // app.UseHttpsRedirection();
+}
+else
+{
+    app.UseHttpsRedirection();
 }
 
-app.UseCors("AllowAll");
-app.UseHttpsRedirection();
+// CORS має бути ПЕРЕД іншими middleware
+app.UseCors("AllowFrontend");
 
 // Rate Limiting middleware
 app.UseRateLimiter();
@@ -113,6 +126,7 @@ app.UseRateLimiter();
 // Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 // Seed данихъ
