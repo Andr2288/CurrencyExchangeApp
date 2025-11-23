@@ -12,7 +12,7 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
-builder.Services.AddControllers()
+builder.Services.AddControllersWithViews()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
@@ -63,6 +63,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+// CSRF Protection - Antiforgery tokens
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = "X-CSRF-TOKEN";
+    options.Cookie.HttpOnly = false; // ўоб frontend м≥г прочитати
+    options.Cookie.SecurePolicy = CookieSecurePolicy.None; // ƒл€ dev (в prod зм≥нити на Always)
+    options.Cookie.SameSite = SameSiteMode.Lax;
+});
+
 // Rate Limiting
 builder.Services.AddRateLimiter(options =>
 {
@@ -84,20 +94,20 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// CORS - ¬ј∆Ћ»¬ќ: додаЇмо обидва порти
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
-                "http://localhost:5173",    // Vite dev server
-                "http://localhost:5099",    // якщо запускаЇтьс€ на цьому порт≥
-                "https://localhost:7287"    // HTTPS порт
+                "http://localhost:5173",
+                "http://localhost:5099",
+                "https://localhost:7287"
               )
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials()
-              .SetIsOriginAllowed(origin => true); // ƒл€ development
+              .SetIsOriginAllowed(origin => true);
     });
 });
 
@@ -108,9 +118,6 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-
-    // ¬имикаЇмо HTTPS redirect в development дл€ спрощенн€
-    // app.UseHttpsRedirection();
 }
 else
 {
@@ -129,7 +136,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Seed данихъ
+// Seed даних
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();

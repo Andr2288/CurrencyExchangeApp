@@ -1,5 +1,6 @@
 ﻿using CurrencyExchange.BLL.DTOs;
 using CurrencyExchange.BLL.Services;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -11,16 +12,29 @@ namespace CurrencyExchange.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AuthService _authService;
+        private readonly IAntiforgery _antiforgery;
 
-        public AuthController(AuthService authService)
+        public AuthController(AuthService authService, IAntiforgery antiforgery)
         {
             _authService = authService;
+            _antiforgery = antiforgery;
         }
 
         /// <summary>
-        /// Реєстрація нового користувача
+        /// Отримати CSRF токен для форм (login/register)
+        /// </summary>
+        [HttpGet("csrf-token")]
+        public IActionResult GetCsrfToken()
+        {
+            var tokens = _antiforgery.GetAndStoreTokens(HttpContext);
+            return Ok(new { csrfToken = tokens.RequestToken });
+        }
+
+        /// <summary>
+        /// Реєстрація нового користувача (з CSRF захистом)
         /// </summary>
         [HttpPost("register")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
             var response = await _authService.RegisterAsync(request);
@@ -32,9 +46,10 @@ namespace CurrencyExchange.API.Controllers
         }
 
         /// <summary>
-        /// Вхід користувача
+        /// Вхід користувача (з CSRF захистом)
         /// </summary>
         [HttpPost("login")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             var response = await _authService.LoginAsync(request);
@@ -51,7 +66,6 @@ namespace CurrencyExchange.API.Controllers
         [HttpGet("check")]
         public IActionResult CheckAuth()
         {
-            // Перевіряємо чи є Authorization header з токеном
             var authHeader = Request.Headers["Authorization"].ToString();
 
             if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
@@ -59,9 +73,6 @@ namespace CurrencyExchange.API.Controllers
                 return Ok(new { isAuthenticated = false });
             }
 
-            // Якщо є токен, намагаємось його валідувати через [Authorize]
-            // Але оскільки цей endpoint не має [Authorize], просто повертаємо що не авторизований
-            // Для простої перевірки без JWT валідації
             return Ok(new { isAuthenticated = false });
         }
 
