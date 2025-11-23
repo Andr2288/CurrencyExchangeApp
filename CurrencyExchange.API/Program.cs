@@ -37,6 +37,7 @@ builder.Services.AddScoped<IExchangeRateService, ExchangeRateService>();
 builder.Services.AddScoped<ExchangeRateFetchService>();
 builder.Services.AddScoped<CurrencyConversionService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<LogService>();
 
 // Adapters
 builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.PrivatBankAdapter>();

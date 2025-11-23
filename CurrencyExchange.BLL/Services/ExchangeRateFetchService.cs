@@ -13,110 +13,90 @@ namespace CurrencyExchange.BLL.Services
     public class ExchangeRateFetchService
     {
         private readonly IEnumerable<IExchangeRateAdapter> _adapters;
-        private readonly IExchangeRateRepository _exchangeRateRepository;
         private readonly IRepository<ApiSource> _apiSourceRepository;
         private readonly ILogger<ExchangeRateFetchService> _logger;
+        private readonly LogService _logService;
 
         public ExchangeRateFetchService(
             IEnumerable<IExchangeRateAdapter> adapters,
-            IExchangeRateRepository exchangeRateRepository,
             IRepository<ApiSource> apiSourceRepository,
-            ILogger<ExchangeRateFetchService> logger)
+            ILogger<ExchangeRateFetchService> logger,
+            LogService logService)
         {
             _adapters = adapters;
-            _exchangeRateRepository = exchangeRateRepository;
             _apiSourceRepository = apiSourceRepository;
             _logger = logger;
+            _logService = logService;
         }
 
         public async Task<int> FetchAllRatesAsync()
         {
-            _logger.LogInformation("Starting to fetch rates from all sources");
+            int totalCount = 0;
 
-            int totalFetched = 0;
+            await _logService.LogAsync("Info", "ExchangeRateFetchService", "Початок оновлення всіх курсів");
 
             foreach (var adapter in _adapters)
             {
                 try
                 {
                     var rates = await adapter.FetchRatesAsync();
+                    totalCount += rates.Count;
 
-                    if (rates.Any())
-                    {
-                        // Зберігаємо курси в БД
-                        foreach (var rate in rates)
-                        {
-                            await _exchangeRateRepository.AddAsync(rate);
-                        }
-                        await _exchangeRateRepository.SaveChangesAsync();
+                    var sourceName = adapter.GetSourceName();
+                    await _logService.LogAsync("Info", sourceName, $"Завантажено {rates.Count} курсів");
 
-                        // Оновлюємо час останнього оновлення джерела
-                        var apiSources = await _apiSourceRepository.FindAsync(s => s.Name == adapter.GetSourceName());
-                        var apiSource = apiSources.FirstOrDefault();
-                        if (apiSource != null)
-                        {
-                            apiSource.LastUpdateAt = DateTime.UtcNow;
-                            await _apiSourceRepository.UpdateAsync(apiSource);
-                            await _apiSourceRepository.SaveChangesAsync();
-                        }
-
-                        totalFetched += rates.Count;
-                        _logger.LogInformation($"Saved {rates.Count} rates from {adapter.GetSourceName()}");
-                    }
+                    await UpdateSourceTimestamp(sourceName);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Error fetching rates from {adapter.GetSourceName()}");
+                    _logger.LogError(ex, "Error fetching rates from {Source}", adapter.GetSourceName());
+                    await _logService.LogAsync("Error", adapter.GetSourceName(), $"Помилка: {ex.Message}");
                 }
             }
 
-            _logger.LogInformation($"Finished fetching rates. Total: {totalFetched}");
-            return totalFetched;
+            await _logService.LogAsync("Info", "ExchangeRateFetchService", $"Завершено оновлення. Всього: {totalCount} курсів");
+            return totalCount;
         }
 
-        public async Task<int> FetchRatesBySourceAsync(string sourceName)
+        public async Task<int> FetchBySourceAsync(string sourceName)
         {
-            _logger.LogInformation($"Fetching rates from {sourceName}");
+            await _logService.LogAsync("Info", sourceName, "Початок оновлення курсів");
 
             var adapter = _adapters.FirstOrDefault(a => a.GetSourceName() == sourceName);
+
             if (adapter == null)
             {
-                _logger.LogWarning($"Adapter for {sourceName} not found");
+                await _logService.LogAsync("Warning", sourceName, "Адаптер не знайдено");
                 return 0;
             }
 
             try
             {
                 var rates = await adapter.FetchRatesAsync();
+                await UpdateSourceTimestamp(sourceName);
 
-                if (rates.Any())
-                {
-                    foreach (var rate in rates)
-                    {
-                        await _exchangeRateRepository.AddAsync(rate);
-                    }
-                    await _exchangeRateRepository.SaveChangesAsync();
-
-                    // Оновлюємо час останнього оновлення
-                    var apiSources = await _apiSourceRepository.FindAsync(s => s.Name == sourceName);
-                    var apiSource = apiSources.FirstOrDefault();
-                    if (apiSource != null)
-                    {
-                        apiSource.LastUpdateAt = DateTime.UtcNow;
-                        await _apiSourceRepository.UpdateAsync(apiSource);
-                        await _apiSourceRepository.SaveChangesAsync();
-                    }
-
-                    _logger.LogInformation($"Saved {rates.Count} rates from {sourceName}");
-                    return rates.Count;
-                }
+                await _logService.LogAsync("Info", sourceName, $"Завантажено {rates.Count} курсів");
+                return rates.Count;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error fetching rates from {sourceName}");
+                _logger.LogError(ex, "Error fetching rates from {Source}", sourceName);
+                await _logService.LogAsync("Error", sourceName, $"Помилка: {ex.Message}");
+                return 0;
             }
+        }
 
-            return 0;
+        private async Task UpdateSourceTimestamp(string sourceName)
+        {
+            var sources = await _apiSourceRepository.FindAsync(s => s.Name == sourceName);
+            var source = sources.FirstOrDefault();
+
+            if (source != null)
+            {
+                source.LastUpdateAt = DateTime.UtcNow;
+                await _apiSourceRepository.UpdateAsync(source);
+                await _apiSourceRepository.SaveChangesAsync();
+            }
         }
     }
 }

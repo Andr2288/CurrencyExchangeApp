@@ -20,6 +20,7 @@ namespace CurrencyExchange.DAL.Data
         public DbSet<ApiSource> ApiSources { get; set; }
         public DbSet<ExchangeRate> ExchangeRates { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<SystemLog> SystemLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

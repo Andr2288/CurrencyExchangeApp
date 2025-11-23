@@ -278,7 +278,7 @@ namespace CurrencyExchange.API.Controllers
         [HttpPost("fetch/{sourceName}")]
         public async Task<IActionResult> FetchRatesBySource(string sourceName)
         {
-            var count = await _fetchService.FetchRatesBySourceAsync(sourceName);
+            var count = await _fetchService.FetchBySourceAsync(sourceName);
             return Ok(new { message = $"Fetched {count} rates from {sourceName}", count });
         }
     }
