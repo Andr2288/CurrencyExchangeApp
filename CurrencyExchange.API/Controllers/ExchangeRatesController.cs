@@ -2,6 +2,7 @@
 using CurrencyExchange.BLL.Services;
 using CurrencyExchange.DAL.Interfaces;
 using CurrencyExchange.DAL.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CurrencyExchange.API.Controllers
@@ -260,8 +261,9 @@ namespace CurrencyExchange.API.Controllers
         }
 
         /// <summary>
-        /// Ручне оновлення всіх курсів
+        /// [ADMIN] Ручне оновлення всіх курсів
         /// </summary>
+        [Authorize(Roles = "Admin")]
         [HttpPost("fetch")]
         public async Task<IActionResult> FetchAllRates()
         {
@@ -270,8 +272,9 @@ namespace CurrencyExchange.API.Controllers
         }
 
         /// <summary>
-        /// Ручне оновлення курсів з конкретного джерела
+        /// [ADMIN] Ручне оновлення курсів з конкретного джерела
         /// </summary>
+        [Authorize(Roles = "Admin")]
         [HttpPost("fetch/{sourceName}")]
         public async Task<IActionResult> FetchRatesBySource(string sourceName)
         {
