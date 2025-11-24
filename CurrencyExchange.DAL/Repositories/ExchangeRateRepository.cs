@@ -63,5 +63,35 @@ namespace CurrencyExchange.DAL.Repositories
                 .OrderByDescending(er => er.FetchedAt)
                 .ToListAsync();
         }
+
+        /// <summary>
+        /// Отримати історичні дані за період
+        /// </summary>
+        public async Task<IEnumerable<ExchangeRate>> GetHistoricalRatesAsync(
+            DateTime startDate,
+            DateTime endDate,
+            int? fromCurrencyId = null,
+            int? toCurrencyId = null,
+            int? apiSourceId = null)
+        {
+            var query = _dbSet
+                .Include(er => er.FromCurrency)
+                .Include(er => er.ToCurrency)
+                .Include(er => er.ApiSource)
+                .Where(er => er.FetchedAt >= startDate && er.FetchedAt <= endDate);
+
+            if (fromCurrencyId.HasValue)
+                query = query.Where(er => er.FromCurrencyId == fromCurrencyId.Value);
+
+            if (toCurrencyId.HasValue)
+                query = query.Where(er => er.ToCurrencyId == toCurrencyId.Value);
+
+            if (apiSourceId.HasValue)
+                query = query.Where(er => er.ApiSourceId == apiSourceId.Value);
+
+            return await query
+                .OrderByDescending(er => er.FetchedAt)
+                .ToListAsync();
+        }
     }
 }

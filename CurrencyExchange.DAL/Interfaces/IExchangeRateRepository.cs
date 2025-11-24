@@ -14,5 +14,11 @@ namespace CurrencyExchange.DAL.Interfaces
         Task<IEnumerable<ExchangeRate>> GetRatesBySourceAsync(int apiSourceId);
         Task<IEnumerable<ExchangeRate>> GetRatesByCurrencyPairAsync(int fromCurrencyId, int toCurrencyId);
         Task<IEnumerable<ExchangeRate>> GetAllWithDetailsAsync();
+        Task<IEnumerable<ExchangeRate>> GetHistoricalRatesAsync(
+            DateTime startDate,
+            DateTime endDate,
+            int? fromCurrencyId = null,
+            int? toCurrencyId = null,
+            int? apiSourceId = null);
     }
 }
