@@ -34,17 +34,25 @@ builder.Services.AddHttpClient();
 // Services
 builder.Services.AddScoped<ICurrencyService, CurrencyService>();
 builder.Services.AddScoped<IExchangeRateService, ExchangeRateService>();
-builder.Services.AddScoped<ExchangeRateFetchService>();
 builder.Services.AddScoped<CurrencyConversionService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<LogService>();
 
-// Adapters
+// NEW: Dynamic Exchange Rate System
+// Реєструємо динамічний сервіс замість статичного
+builder.Services.AddScoped<DynamicExchangeRateFetchService>();
+
+// Legacy адаптери (для зворотної сумісності)
+builder.Services.AddScoped<CurrencyExchange.BLL.Adapters.PrivatBankAdapter>();
+builder.Services.AddScoped<CurrencyExchange.BLL.Adapters.NbuAdapter>();
+
+// OLD: Static adapters (kept for backwards compatibility)
+builder.Services.AddScoped<ExchangeRateFetchService>();
 builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.PrivatBankAdapter>();
 builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.NbuAdapter>();
 
-// Background Service для автооновлення курсів
-builder.Services.AddHostedService<ExchangeRateBackgroundService>();
+// Background Service для автооновлення курсів з новою системою
+builder.Services.AddHostedService<DynamicExchangeRateBackgroundService>();
 
 // JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
