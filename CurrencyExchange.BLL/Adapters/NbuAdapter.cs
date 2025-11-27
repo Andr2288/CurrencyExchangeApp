@@ -17,6 +17,7 @@ namespace CurrencyExchange.BLL.Adapters
         private readonly HttpClient _httpClient;
         private readonly IRepository<Currency> _currencyRepository;
         private readonly IRepository<ApiSource> _apiSourceRepository;
+        private readonly IRepository<ExchangeRate> _exchangeRateRepository; // ДОДАНО
         private readonly ILogger<NbuAdapter> _logger;
         private const string API_URL = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json";
 
@@ -24,11 +25,13 @@ namespace CurrencyExchange.BLL.Adapters
             HttpClient httpClient,
             IRepository<Currency> currencyRepository,
             IRepository<ApiSource> apiSourceRepository,
+            IRepository<ExchangeRate> exchangeRateRepository, // ДОДАНО
             ILogger<NbuAdapter> logger)
         {
             _httpClient = httpClient;
             _currencyRepository = currencyRepository;
             _apiSourceRepository = apiSourceRepository;
+            _exchangeRateRepository = exchangeRateRepository; // ДОДАНО
             _logger = logger;
         }
 
@@ -84,20 +87,26 @@ namespace CurrencyExchange.BLL.Adapters
                         continue;
                     }
 
-                    // НБУ дає тільки офіційний курс, тому buy = sell
-                    rates.Add(new ExchangeRate
+                    // ВИПРАВЛЕНО: Створюємо та зберігаємо в БД
+                    var exchangeRate = new ExchangeRate
                     {
                         FromCurrencyId = currency.Id,
                         ToCurrencyId = uah.Id,
                         ApiSourceId = apiSource.Id,
                         BuyRate = rate.rate,
-                        SellRate = rate.rate,
+                        SellRate = rate.rate, // НБУ дає тільки офіційний курс, тому buy = sell
                         FetchedAt = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow
-                    });
+                    };
+
+                    // ЗБЕРІГАЄМО В БАЗУ ДАНИХ
+                    await _exchangeRateRepository.AddAsync(exchangeRate);
+                    await _exchangeRateRepository.SaveChangesAsync();
+
+                    rates.Add(exchangeRate);
                 }
 
-                _logger.LogInformation($"Successfully fetched {rates.Count} rates from NBU");
+                _logger.LogInformation($"Successfully fetched and saved {rates.Count} rates from NBU");
             }
             catch (HttpRequestException ex)
             {

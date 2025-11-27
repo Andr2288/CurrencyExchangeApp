@@ -18,6 +18,7 @@ namespace CurrencyExchange.BLL.Adapters
         private readonly HttpClient _httpClient;
         private readonly IRepository<Currency> _currencyRepository;
         private readonly IRepository<ApiSource> _apiSourceRepository;
+        private readonly IRepository<ExchangeRate> _exchangeRateRepository; // ДОДАНО
         private readonly ILogger<PrivatBankAdapter> _logger;
         private const string API_URL = "https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5";
 
@@ -25,11 +26,13 @@ namespace CurrencyExchange.BLL.Adapters
             HttpClient httpClient,
             IRepository<Currency> currencyRepository,
             IRepository<ApiSource> apiSourceRepository,
+            IRepository<ExchangeRate> exchangeRateRepository, // ДОДАНО
             ILogger<PrivatBankAdapter> logger)
         {
             _httpClient = httpClient;
             _currencyRepository = currencyRepository;
             _apiSourceRepository = apiSourceRepository;
+            _exchangeRateRepository = exchangeRateRepository; // ДОДАНО
             _logger = logger;
         }
 
@@ -95,7 +98,8 @@ namespace CurrencyExchange.BLL.Adapters
                         continue;
                     }
 
-                    rates.Add(new ExchangeRate
+                    // ВИПРАВЛЕНО: Створюємо та зберігаємо в БД
+                    var exchangeRate = new ExchangeRate
                     {
                         FromCurrencyId = currency.Id,
                         ToCurrencyId = uah.Id,
@@ -104,12 +108,18 @@ namespace CurrencyExchange.BLL.Adapters
                         SellRate = sellRate,
                         FetchedAt = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow
-                    });
+                    };
 
-                    _logger.LogDebug($"Successfully parsed rate for {rate.ccy}: buy={buyRate}, sell={sellRate}");
+                    // ЗБЕРІГАЄМО В БАЗУ ДАНИХ
+                    await _exchangeRateRepository.AddAsync(exchangeRate);
+                    await _exchangeRateRepository.SaveChangesAsync();
+
+                    rates.Add(exchangeRate);
+
+                    _logger.LogDebug($"Successfully parsed and saved rate for {rate.ccy}: buy={buyRate}, sell={sellRate}");
                 }
 
-                _logger.LogInformation($"Successfully fetched {rates.Count} rates from PrivatBank");
+                _logger.LogInformation($"Successfully fetched and saved {rates.Count} rates from PrivatBank");
             }
             catch (HttpRequestException ex)
             {

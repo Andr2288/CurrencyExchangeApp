@@ -1,13 +1,15 @@
-using Microsoft.EntityFrameworkCore;
-using CurrencyExchange.DAL.Data;
-using CurrencyExchange.DAL.Interfaces;
-using CurrencyExchange.DAL.Repositories;
 using CurrencyExchange.BLL.Interfaces;
 using CurrencyExchange.BLL.Services;
-using System.Threading.RateLimiting;
+using CurrencyExchange.DAL.Data;
+using CurrencyExchange.DAL.Interfaces;
+using CurrencyExchange.DAL.Models;
+using CurrencyExchange.DAL.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,9 +44,23 @@ builder.Services.AddScoped<LogService>();
 // Реєструємо динамічний сервіс замість статичного
 builder.Services.AddScoped<DynamicExchangeRateFetchService>();
 
-// Legacy адаптери (для зворотної сумісності)
-builder.Services.AddScoped<CurrencyExchange.BLL.Adapters.PrivatBankAdapter>();
-builder.Services.AddScoped<CurrencyExchange.BLL.Adapters.NbuAdapter>();
+builder.Services.AddScoped<CurrencyExchange.BLL.Adapters.PrivatBankAdapter>(provider =>
+    new CurrencyExchange.BLL.Adapters.PrivatBankAdapter(
+        provider.GetRequiredService<HttpClient>(),
+        provider.GetRequiredService<IRepository<Currency>>(),
+        provider.GetRequiredService<IRepository<ApiSource>>(),
+        provider.GetRequiredService<IRepository<ExchangeRate>>(), // ДОДАНО
+        provider.GetRequiredService<ILogger<CurrencyExchange.BLL.Adapters.PrivatBankAdapter>>()
+    ));
+
+builder.Services.AddScoped<CurrencyExchange.BLL.Adapters.NbuAdapter>(provider =>
+    new CurrencyExchange.BLL.Adapters.NbuAdapter(
+        provider.GetRequiredService<HttpClient>(),
+        provider.GetRequiredService<IRepository<Currency>>(),
+        provider.GetRequiredService<IRepository<ApiSource>>(),
+        provider.GetRequiredService<IRepository<ExchangeRate>>(), // ДОДАНО
+        provider.GetRequiredService<ILogger<CurrencyExchange.BLL.Adapters.NbuAdapter>>()
+    ));
 
 // OLD: Static adapters (kept for backwards compatibility)
 builder.Services.AddScoped<ExchangeRateFetchService>();

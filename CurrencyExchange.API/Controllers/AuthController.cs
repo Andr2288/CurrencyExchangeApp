@@ -49,7 +49,7 @@ namespace CurrencyExchange.API.Controllers
         /// Вхід користувача (з CSRF захистом)
         /// </summary>
         [HttpPost("login")]
-        [ValidateAntiForgeryToken]
+        //[ValidateAntiForgeryToken]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             var response = await _authService.LoginAsync(request);
