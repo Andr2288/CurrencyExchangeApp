@@ -14,6 +14,7 @@ namespace CurrencyExchange.BLL.Services
 {
     /// <summary>
     /// Динамічний сервіс для створення адаптерів на основі налаштувань в БД
+    /// ВИПРАВЛЕНО: HttpClient не dispose передчасно
     /// </summary>
     public class DynamicExchangeRateFetchService
     {
@@ -107,10 +108,10 @@ namespace CurrencyExchange.BLL.Services
             switch (apiSource.Name)
             {
                 case "ПриватБанк":
-                    return CreateLegacyAdapter<CurrencyExchange.BLL.Adapters.PrivatBankAdapter>();
+                    return CreateLegacyAdapter<PrivatBankAdapter>();
 
                 case "НБУ":
-                    return CreateLegacyAdapter<CurrencyExchange.BLL.Adapters.NbuAdapter>();
+                    return CreateLegacyAdapter<NbuAdapter>();
 
                 default:
                     // Для всіх нових джерел створюємо універсальний адаптер
@@ -126,17 +127,20 @@ namespace CurrencyExchange.BLL.Services
             return _serviceProvider.GetRequiredService<T>();
         }
 
+        /// <summary>
+        /// Створює універсальний адаптер для нових API джерел
+        /// ВИПРАВЛЕНО: НЕ використовуємо using scope щоб HttpClient не disposed
+        /// </summary>
         private IExchangeRateAdapter CreateUniversalAdapter(ApiSource apiSource)
         {
-            using var scope = _serviceProvider.CreateScope();
+            // НЕ ВИКОРИСТОВУЄМО using - це dispose HttpClient передчасно!
+            var httpClient = _serviceProvider.GetRequiredService<HttpClient>();
+            var currencyRepository = _serviceProvider.GetRequiredService<IRepository<Currency>>();
+            var apiSourceRepository = _serviceProvider.GetRequiredService<IRepository<ApiSource>>();
+            var exchangeRateRepository = _serviceProvider.GetRequiredService<IRepository<ExchangeRate>>();
+            var logger = _serviceProvider.GetRequiredService<ILogger<UniversalApiAdapter>>();
 
-            var httpClient = scope.ServiceProvider.GetRequiredService<HttpClient>();
-            var currencyRepository = scope.ServiceProvider.GetRequiredService<IRepository<Currency>>();
-            var apiSourceRepository = scope.ServiceProvider.GetRequiredService<IRepository<ApiSource>>();
-            var exchangeRateRepository = scope.ServiceProvider.GetRequiredService<IRepository<ExchangeRate>>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<UniversalApiAdapter>>();
-
-            return new UniversalApiAdapter(  // ВИПРАВЛЕНО
+            return new UniversalApiAdapter(  // ВИПРАВЛЕНО: коротка назва класу
                 httpClient,
                 currencyRepository,
                 apiSourceRepository,

@@ -13,8 +13,7 @@ using System.Threading.Tasks;
 namespace CurrencyExchange.BLL.Adapters
 {
     /// <summary>
-    /// Універсальний адаптер для роботи з будь-якими API джерелами
-    /// на основі конфігурації з бази даних
+    /// Універсальний адаптер з підтримкою числових валютних кодів (ISO 4217)
     /// </summary>
     public class UniversalApiAdapter : IExchangeRateAdapter
     {
@@ -24,6 +23,30 @@ namespace CurrencyExchange.BLL.Adapters
         private readonly IRepository<ExchangeRate> _exchangeRateRepository;
         private readonly ILogger<UniversalApiAdapter> _logger;
         private readonly ApiSource _apiSource;
+
+        // Мапінг числових кодів ISO 4217 на літерні
+        private static readonly Dictionary<int, string> IsoCurrencyCodeMapping = new()
+        {
+            { 840, "USD" },   // Долар США
+            { 978, "EUR" },   // Євро  
+            { 980, "UAH" },   // Гривня
+            { 985, "PLN" },   // Польський злотий
+            { 826, "GBP" },   // Британський фунт
+            { 756, "CHF" },   // Швейцарський франк
+            { 392, "JPY" },   // Японська єна
+            { 156, "CNY" },   // Китайський юань
+            { 124, "CAD" },   // Канадський долар
+            { 36, "AUD" },    // Австралійський долар
+            { 752, "SEK" },   // Шведська крона
+            { 578, "NOK" },   // Норвезька крона
+            { 208, "DKK" },   // Данська крона
+            { 203, "CZK" },   // Чеська крона
+            { 348, "HUF" },   // Угорський форинт
+            { 946, "RON" },   // Румунський лей
+            { 975, "BGN" },   // Болгарський лев
+            { 191, "HRK" },   // Хорватська куна
+            { 949, "TRY" },   // Турецька ліра
+        };
 
         public UniversalApiAdapter(
             HttpClient httpClient,
@@ -57,10 +80,16 @@ namespace CurrencyExchange.BLL.Adapters
             {
                 _logger.LogInformation("Fetching rates from {Source} API: {Url}", _apiSource.Name, _apiSource.Url);
 
-                var response = await _httpClient.GetStringAsync(_apiSource.Url);
-                _logger.LogDebug("{Source} API response: {Response}", _apiSource.Name, response.Substring(0, Math.Min(200, response.Length)));
+                // Додаємо затримку для API з лімітами (як Монобанк)
+                if (_apiSource.Name.Contains("моно", StringComparison.OrdinalIgnoreCase))
+                {
+                    await Task.Delay(1000); // 1 секунда затримки
+                    _logger.LogDebug("Applied rate limiting delay for {Source}", _apiSource.Name);
+                }
 
-                // Намагаємось розпарсити JSON
+                var response = await _httpClient.GetStringAsync(_apiSource.Url);
+                _logger.LogInformation("{Source} API response received, length: {Length}", _apiSource.Name, response.Length);
+
                 if (_apiSource.Format.ToUpper() == "JSON")
                 {
                     rates = await ParseJsonResponse(response);
@@ -70,7 +99,11 @@ namespace CurrencyExchange.BLL.Adapters
                     _logger.LogWarning("Unsupported format: {Format} for source {Source}", _apiSource.Format, _apiSource.Name);
                 }
 
-                _logger.LogInformation("Successfully fetched {Count} rates from {Source}", rates.Count, _apiSource.Name);
+                _logger.LogInformation("Successfully processed {Count} rates from {Source}", rates.Count, _apiSource.Name);
+            }
+            catch (HttpRequestException ex) when (ex.Message.Contains("429"))
+            {
+                _logger.LogWarning("Rate limit exceeded for {Source}. Consider increasing interval.", _apiSource.Name);
             }
             catch (HttpRequestException ex)
             {
@@ -92,7 +125,6 @@ namespace CurrencyExchange.BLL.Adapters
         {
             var rates = new List<ExchangeRate>();
 
-            // Отримуємо валюти та UAH
             var currencies = await _currencyRepository.GetAllAsync();
             var uah = currencies.FirstOrDefault(c => c.Code == "UAH");
 
@@ -102,14 +134,17 @@ namespace CurrencyExchange.BLL.Adapters
                 return rates;
             }
 
+            _logger.LogInformation("Available currencies in DB: {Currencies}", string.Join(", ", currencies.Select(c => c.Code)));
+
             try
             {
-                // Спочатку пробуємо розпарсити як масив об'єктів
                 var jsonDocument = JsonDocument.Parse(jsonResponse);
+                _logger.LogInformation("JSON parsed successfully, root type: {Type}", jsonDocument.RootElement.ValueKind);
 
                 if (jsonDocument.RootElement.ValueKind == JsonValueKind.Array)
                 {
-                    // Масив об'єктів - стандартний формат
+                    _logger.LogInformation("Processing array with {Count} elements", jsonDocument.RootElement.GetArrayLength());
+
                     foreach (var element in jsonDocument.RootElement.EnumerateArray())
                     {
                         var rate = await TryParseRateElement(element, currencies, uah);
@@ -121,11 +156,34 @@ namespace CurrencyExchange.BLL.Adapters
                 }
                 else if (jsonDocument.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    // Об'єкт - можливо, один курс або nested структура
-                    var rate = await TryParseRateElement(jsonDocument.RootElement, currencies, uah);
-                    if (rate != null)
+                    _logger.LogInformation("Processing single object");
+
+                    var foundArray = false;
+                    foreach (var property in jsonDocument.RootElement.EnumerateObject())
                     {
-                        rates.Add(rate);
+                        if (property.Value.ValueKind == JsonValueKind.Array)
+                        {
+                            _logger.LogInformation("Found array property: {PropertyName} with {Count} elements", property.Name, property.Value.GetArrayLength());
+
+                            foreach (var element in property.Value.EnumerateArray())
+                            {
+                                var rate = await TryParseRateElement(element, currencies, uah);
+                                if (rate != null)
+                                {
+                                    rates.Add(rate);
+                                }
+                            }
+                            foundArray = true;
+                        }
+                    }
+
+                    if (!foundArray)
+                    {
+                        var rate = await TryParseRateElement(jsonDocument.RootElement, currencies, uah);
+                        if (rate != null)
+                        {
+                            rates.Add(rate);
+                        }
                     }
                 }
             }
@@ -134,6 +192,7 @@ namespace CurrencyExchange.BLL.Adapters
                 _logger.LogError(ex, "Failed to parse JSON response from {Source}", _apiSource.Name);
             }
 
+            _logger.LogInformation("Parsed {Count} valid rates from {Source}", rates.Count, _apiSource.Name);
             return rates;
         }
 
@@ -141,24 +200,39 @@ namespace CurrencyExchange.BLL.Adapters
         {
             try
             {
-                // Шукаємо поля з валютою
+                _logger.LogDebug("Parsing rate element: {Element}", element.GetRawText());
+
                 string? currencyCode = null;
                 decimal buyRate = 0;
                 decimal sellRate = 0;
 
-                // Можливі варіанти назв полів для валютного коду
-                var currencyFields = new[] { "ccy", "cc", "currency", "currencyCode", "from", "code" };
-                foreach (var field in currencyFields)
+                // Спочатку пробуємо числові коди (для Монобанку та інших)
+                if (TryParseNumericCurrencyCode(element, out currencyCode))
                 {
-                    if (element.TryGetProperty(field, out var prop))
+                    _logger.LogDebug("Found numeric currency code: {Code}", currencyCode);
+                }
+                else
+                {
+                    // Якщо числовий код не знайдено, шукаємо літерні
+                    var currencyFields = new[] {
+                        "ccy", "cc", "currency", "currencyCode", "from", "code",
+                        "currency_code", "baseCurrency", "base", "symbol"
+                    };
+
+                    foreach (var field in currencyFields)
                     {
-                        currencyCode = prop.GetString();
-                        break;
+                        if (element.TryGetProperty(field, out var prop))
+                        {
+                            currencyCode = prop.GetString();
+                            _logger.LogDebug("Found string currency code '{Code}' in field '{Field}'", currencyCode, field);
+                            break;
+                        }
                     }
                 }
 
                 if (string.IsNullOrEmpty(currencyCode))
                 {
+                    _logger.LogDebug("No currency code found in element: {Element}", element.GetRawText());
                     return null;
                 }
 
@@ -166,32 +240,49 @@ namespace CurrencyExchange.BLL.Adapters
                 var currency = currencies.FirstOrDefault(c => c.Code.Equals(currencyCode, StringComparison.OrdinalIgnoreCase));
                 if (currency == null)
                 {
-                    _logger.LogDebug("Currency {Code} not found in database, skipping", currencyCode);
+                    _logger.LogDebug("Currency '{Code}' not found in database", currencyCode);
                     return null;
                 }
 
-                // Шукаємо поля з курсами
-                buyRate = TryGetDecimalValue(element, new[] { "buy", "buyRate", "bid", "rate", "value" });
-                sellRate = TryGetDecimalValue(element, new[] { "sell", "sale", "sellRate", "ask", "rate", "value" });
+                // Різні поля для курсів (включаючи Монобанк)
+                var buyFields = new[] { "rateBuy", "buy", "buyRate", "bid", "rate", "value", "buy_rate" };
+                var sellFields = new[] { "rateSell", "sell", "sellRate", "ask", "rate", "value", "sell_rate", "sale" };
+                var crossFields = new[] { "rateCross", "cross", "rate", "value" }; // Для кроскурсів
 
-                // Якщо є тільки один курс - використовуємо його для обох напрямків
-                if (buyRate > 0 && sellRate == 0)
+                buyRate = TryGetDecimalValue(element, buyFields);
+                sellRate = TryGetDecimalValue(element, sellFields);
+
+                // Якщо немає buy/sell, пробуємо cross курс
+                if (buyRate == 0 && sellRate == 0)
                 {
-                    sellRate = buyRate;
-                }
-                else if (sellRate > 0 && buyRate == 0)
-                {
-                    buyRate = sellRate;
+                    var crossRate = TryGetDecimalValue(element, crossFields);
+                    if (crossRate > 0)
+                    {
+                        buyRate = sellRate = crossRate;
+                        _logger.LogDebug("Using cross rate for {Currency}: {Rate}", currencyCode, crossRate);
+                    }
                 }
 
-                // Валідація
-                if (buyRate <= 0 || sellRate <= 0)
+                _logger.LogDebug("Extracted rates for {Currency}: buy={Buy}, sell={Sell}", currencyCode, buyRate, sellRate);
+
+                // М'яка валідація
+                if (buyRate <= 0 && sellRate <= 0)
                 {
-                    _logger.LogWarning("Invalid rate values for {Currency}: buy={Buy}, sell={Sell}", currencyCode, buyRate, sellRate);
+                    _logger.LogWarning("All rates are zero for {Currency}", currencyCode);
                     return null;
                 }
 
-                // Створюємо ExchangeRate і зберігаємо в БД
+                // Використовуємо наявний курс для обох напрямків
+                if (buyRate <= 0) buyRate = sellRate;
+                if (sellRate <= 0) sellRate = buyRate;
+
+                // Перевірка на UAH -> UAH (пропускаємо)
+                if (currency.Code == "UAH")
+                {
+                    _logger.LogDebug("Skipping UAH to UAH rate");
+                    return null;
+                }
+
                 var exchangeRate = new ExchangeRate
                 {
                     FromCurrencyId = currency.Id,
@@ -203,11 +294,19 @@ namespace CurrencyExchange.BLL.Adapters
                     CreatedAt = DateTime.UtcNow
                 };
 
-                // Зберігаємо в базу даних
-                await _exchangeRateRepository.AddAsync(exchangeRate);
-                await _exchangeRateRepository.SaveChangesAsync();
+                try
+                {
+                    await _exchangeRateRepository.AddAsync(exchangeRate);
+                    await _exchangeRateRepository.SaveChangesAsync();
 
-                _logger.LogDebug("Successfully parsed rate for {Currency}: buy={Buy}, sell={Sell}", currencyCode, buyRate, sellRate);
+                    _logger.LogInformation("✅ Saved rate for {Currency}: buy={Buy}, sell={Sell}",
+                        currencyCode, buyRate, sellRate);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to save rate for {Currency} to database", currencyCode);
+                    return null;
+                }
 
                 return exchangeRate;
             }
@@ -218,13 +317,37 @@ namespace CurrencyExchange.BLL.Adapters
             }
         }
 
+        /// <summary>
+        /// Парсить числові валютні коди (ISO 4217) як у Монобанку
+        /// </summary>
+        private bool TryParseNumericCurrencyCode(JsonElement element, out string? currencyCode)
+        {
+            currencyCode = null;
+
+            // Шукаємо currencyCodeA (основна валюта) та currencyCodeB (базова валюта)
+            if (element.TryGetProperty("currencyCodeA", out var codeAProp) &&
+                element.TryGetProperty("currencyCodeB", out var codeBProp))
+            {
+                if (codeAProp.TryGetInt32(out int codeA) && codeBProp.TryGetInt32(out int codeB))
+                {
+                    // Якщо currencyCodeB = 980 (UAH), то currencyCodeA - це валюта до UAH
+                    if (codeB == 980 && IsoCurrencyCodeMapping.TryGetValue(codeA, out currencyCode))
+                    {
+                        _logger.LogDebug("Mapped numeric code {NumericCode} to {CurrencyCode}", codeA, currencyCode);
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         private decimal TryGetDecimalValue(JsonElement element, string[] possibleFields)
         {
             foreach (var field in possibleFields)
             {
                 if (element.TryGetProperty(field, out var prop))
                 {
-                    // Спробуємо отримати як число
                     if (prop.ValueKind == JsonValueKind.Number)
                     {
                         if (prop.TryGetDecimal(out var decimalValue))
@@ -232,7 +355,6 @@ namespace CurrencyExchange.BLL.Adapters
                             return decimalValue;
                         }
                     }
-                    // Спробуємо отримати як рядок і розпарсити
                     else if (prop.ValueKind == JsonValueKind.String)
                     {
                         var stringValue = prop.GetString();
@@ -243,18 +365,14 @@ namespace CurrencyExchange.BLL.Adapters
                     }
                 }
             }
-
             return 0;
         }
 
         private bool TryParseDecimal(string? value, out decimal result)
         {
             result = 0;
+            if (string.IsNullOrWhiteSpace(value)) return false;
 
-            if (string.IsNullOrWhiteSpace(value))
-                return false;
-
-            // Спробуємо різні варіанти парсингу
             var formats = new[]
             {
                 CultureInfo.InvariantCulture,
@@ -265,23 +383,17 @@ namespace CurrencyExchange.BLL.Adapters
             foreach (var culture in formats)
             {
                 if (decimal.TryParse(value, NumberStyles.Number, culture, out result))
-                {
                     return true;
-                }
             }
 
-            // Спробуємо замінити кому на крапку та навпаки
+            // Нормалізація розділювачів
             var normalizedValue = value.Replace(',', '.');
             if (decimal.TryParse(normalizedValue, NumberStyles.Number, CultureInfo.InvariantCulture, out result))
-            {
                 return true;
-            }
 
             normalizedValue = value.Replace('.', ',');
             if (decimal.TryParse(normalizedValue, NumberStyles.Number, CultureInfo.GetCultureInfo("uk-UA"), out result))
-            {
                 return true;
-            }
 
             return false;
         }
