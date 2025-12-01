@@ -1,4 +1,4 @@
-using CurrencyExchange.BLL.Interfaces;
+п»їusing CurrencyExchange.BLL.Interfaces;
 using CurrencyExchange.BLL.Services;
 using CurrencyExchange.DAL.Data;
 using CurrencyExchange.DAL.Interfaces;
@@ -41,7 +41,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<LogService>();
 
 // NEW: Dynamic Exchange Rate System
-// Реєструємо динамічний сервіс замість статичного
+// Р РµС”СЃС‚СЂСѓС”РјРѕ РґРёРЅР°РјС–С‡РЅРёР№ СЃРµСЂРІС–СЃ Р·Р°РјС–СЃС‚СЊ СЃС‚Р°С‚РёС‡РЅРѕРіРѕ
 builder.Services.AddScoped<DynamicExchangeRateFetchService>();
 
 builder.Services.AddScoped<CurrencyExchange.BLL.Adapters.PrivatBankAdapter>(provider =>
@@ -49,7 +49,7 @@ builder.Services.AddScoped<CurrencyExchange.BLL.Adapters.PrivatBankAdapter>(prov
         provider.GetRequiredService<HttpClient>(),
         provider.GetRequiredService<IRepository<Currency>>(),
         provider.GetRequiredService<IRepository<ApiSource>>(),
-        provider.GetRequiredService<IRepository<ExchangeRate>>(), // ДОДАНО
+        provider.GetRequiredService<IRepository<ExchangeRate>>(), // Р”РћР”РђРќРћ
         provider.GetRequiredService<ILogger<CurrencyExchange.BLL.Adapters.PrivatBankAdapter>>()
     ));
 
@@ -58,7 +58,7 @@ builder.Services.AddScoped<CurrencyExchange.BLL.Adapters.NbuAdapter>(provider =>
         provider.GetRequiredService<HttpClient>(),
         provider.GetRequiredService<IRepository<Currency>>(),
         provider.GetRequiredService<IRepository<ApiSource>>(),
-        provider.GetRequiredService<IRepository<ExchangeRate>>(), // ДОДАНО
+        provider.GetRequiredService<IRepository<ExchangeRate>>(), // Р”РћР”РђРќРћ
         provider.GetRequiredService<ILogger<CurrencyExchange.BLL.Adapters.NbuAdapter>>()
     ));
 
@@ -67,7 +67,7 @@ builder.Services.AddScoped<ExchangeRateFetchService>();
 builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.PrivatBankAdapter>();
 builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.NbuAdapter>();
 
-// Background Service для автооновлення курсів з новою системою
+// Background Service РґР»СЏ Р°РІС‚РѕРѕРЅРѕРІР»РµРЅРЅСЏ РєСѓСЂСЃС–РІ Р· РЅРѕРІРѕСЋ СЃРёСЃС‚РµРјРѕСЋ
 builder.Services.AddHostedService<DynamicExchangeRateBackgroundService>();
 
 // JWT Authentication
@@ -93,8 +93,8 @@ builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
     options.Cookie.Name = "X-CSRF-TOKEN";
-    options.Cookie.HttpOnly = false; // Щоб frontend міг прочитати
-    options.Cookie.SecurePolicy = CookieSecurePolicy.None; // Для dev (в prod змінити на Always)
+    options.Cookie.HttpOnly = false; // Р©РѕР± frontend РјС–Рі РїСЂРѕС‡РёС‚Р°С‚Рё
+    options.Cookie.SecurePolicy = CookieSecurePolicy.None; // Р”Р»СЏ dev (РІ prod Р·РјС–РЅРёС‚Рё РЅР° Always)
     options.Cookie.SameSite = SameSiteMode.Lax;
 });
 
@@ -149,7 +149,7 @@ else
     app.UseHttpsRedirection();
 }
 
-// CORS має бути ПЕРЕД іншими middleware
+// CORS РјР°С” Р±СѓС‚Рё РџР•Р Р•Р” С–РЅС€РёРјРё middleware
 app.UseCors("AllowFrontend");
 
 // Rate Limiting middleware
@@ -161,7 +161,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Seed даних
+// Seed РґР°РЅРёС…
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
