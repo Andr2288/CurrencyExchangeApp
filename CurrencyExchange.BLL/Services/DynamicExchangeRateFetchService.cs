@@ -3,6 +3,7 @@ using CurrencyExchange.DAL.Interfaces;
 using CurrencyExchange.DAL.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using CurrencyExchange.BLL.Adapters; // ДОДАТИ
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -125,9 +126,6 @@ namespace CurrencyExchange.BLL.Services
             return _serviceProvider.GetRequiredService<T>();
         }
 
-        /// <summary>
-        /// Створює універсальний адаптер для нових API джерел
-        /// </summary>
         private IExchangeRateAdapter CreateUniversalAdapter(ApiSource apiSource)
         {
             using var scope = _serviceProvider.CreateScope();
@@ -136,9 +134,9 @@ namespace CurrencyExchange.BLL.Services
             var currencyRepository = scope.ServiceProvider.GetRequiredService<IRepository<Currency>>();
             var apiSourceRepository = scope.ServiceProvider.GetRequiredService<IRepository<ApiSource>>();
             var exchangeRateRepository = scope.ServiceProvider.GetRequiredService<IRepository<ExchangeRate>>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<CurrencyExchange.BLL.Adapters.UniversalApiAdapter>>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<UniversalApiAdapter>>();
 
-            return new CurrencyExchange.BLL.Adapters.UniversalApiAdapter(
+            return new UniversalApiAdapter(  // ВИПРАВЛЕНО
                 httpClient,
                 currencyRepository,
                 apiSourceRepository,
