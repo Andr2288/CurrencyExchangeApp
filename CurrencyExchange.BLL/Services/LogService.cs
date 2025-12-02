@@ -47,5 +47,27 @@ namespace CurrencyExchange.BLL.Services
                        .Take(count)
                        .ToList();
         }
+
+        /// <summary>
+        /// Видалити логи старше 30 днів
+        /// </summary>
+        public async Task<int> CleanupOldLogsAsync()
+        {
+            var cutoffDate = DateTime.UtcNow.AddDays(-30);
+            var oldLogs = await _logRepository.FindAsync(l => l.Timestamp < cutoffDate);
+
+            if (oldLogs.Any())
+            {
+                foreach (var log in oldLogs)
+                {
+                    await _logRepository.DeleteAsync(log); // Передаємо об'єкт, не ID
+                }
+
+                await _logRepository.SaveChangesAsync();
+                return oldLogs.Count();
+            }
+
+            return 0;
+        }
     }
 }

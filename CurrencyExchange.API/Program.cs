@@ -69,6 +69,7 @@ builder.Services.AddScoped<IExchangeRateAdapter, CurrencyExchange.BLL.Adapters.N
 
 // Background Service для автооновлення курсів з новою системою
 builder.Services.AddHostedService<DynamicExchangeRateBackgroundService>();
+builder.Services.AddHostedService<LogCleanupBackgroundService>();
 
 // JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

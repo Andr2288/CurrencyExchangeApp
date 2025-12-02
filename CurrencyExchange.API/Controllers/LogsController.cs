@@ -36,5 +36,22 @@ namespace CurrencyExchange.API.Controllers
                 l.Timestamp
             }));
         }
+
+        /// <summary>
+        /// [ADMIN] Ручне очищення старих логів (>30 днів)
+        /// </summary>
+        [HttpDelete("cleanup")]
+        public async Task<IActionResult> CleanupOldLogs()
+        {
+            var deletedCount = await _logService.CleanupOldLogsAsync();
+
+            return Ok(new
+            {
+                message = deletedCount > 0
+                    ? $"Видалено {deletedCount} старих записів"
+                    : "Старих логів не знайдено",
+                deletedCount = deletedCount
+            });
+        }
     }
 }
