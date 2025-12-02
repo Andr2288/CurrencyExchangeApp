@@ -17,15 +17,15 @@ namespace CurrencyExchange.API.Controllers
         }
 
         /// <summary>
-        /// [ADMIN] Отримати останні логи системи
+        /// [ADMIN] Отримати останні логи системи з фільтрацією за рівнем
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetLatestLogs([FromQuery] int count = 50)
+        public async Task<IActionResult> GetLatestLogs([FromQuery] int count = 50, [FromQuery] string? level = null)
         {
             if (count < 1) count = 50;
             if (count > 200) count = 200;
 
-            var logs = await _logService.GetLatestLogsAsync(count);
+            var logs = await _logService.GetLatestLogsAsync(count, level);
 
             return Ok(logs.Select(l => new
             {

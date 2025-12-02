@@ -31,10 +31,19 @@ namespace CurrencyExchange.BLL.Services
             await _logRepository.SaveChangesAsync();
         }
 
-        public async Task<List<SystemLog>> GetLatestLogsAsync(int count = 50)
+        public async Task<List<SystemLog>> GetLatestLogsAsync(int count = 50, string? level = null)
         {
             var logs = await _logRepository.GetAllAsync();
-            return logs.OrderByDescending(l => l.Timestamp)
+
+            var query = logs.AsQueryable();
+
+            // Фільтрація за рівнем якщо параметр задано
+            if (!string.IsNullOrEmpty(level))
+            {
+                query = query.Where(l => l.Level.Equals(level, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return query.OrderByDescending(l => l.Timestamp)
                        .Take(count)
                        .ToList();
         }
