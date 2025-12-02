@@ -33,6 +33,9 @@ builder.Services.AddScoped<IExchangeRateRepository, ExchangeRateRepository>();
 // HttpClient
 builder.Services.AddHttpClient();
 
+// ДОДАТИ: Валідатор для API джерел
+builder.Services.AddScoped<CurrencyExchange.BLL.Validators.ApiSourceValidator>();
+
 // Services
 builder.Services.AddScoped<ICurrencyService, CurrencyService>();
 builder.Services.AddScoped<IExchangeRateService, ExchangeRateService>();
